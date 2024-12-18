@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { IoMdMicOff, IoMdMic } from "react-icons/io";
-import { HiMiniSpeakerWave } from "react-icons/hi2";
+import { HiMiniSpeakerWave, HiMiniSpeakerXMark } from "react-icons/hi2";
 
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
+
 import './index.css';
 
 const ContactSupport = () => {
@@ -11,13 +12,20 @@ const ContactSupport = () => {
   ]);
   const [input, setInput] = useState("");
   const [showMicOn, setShowMicOn] = useState(true);
+  const [speaking, setSpeaking] = useState(false);
 
-  const { transcript, resetTranscript, listening } = useSpeechRecognition();
+  const { transcript, resetTranscript } = useSpeechRecognition();
 
   const readAloud = (text) => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "en-US";
-    window.speechSynthesis.speak(utterance);
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+    } else {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "en-US";
+      window.speechSynthesis.speak(utterance);
+      setSpeaking(true);
+    }
   };
 
   const handleStartListening = () => {
@@ -25,15 +33,51 @@ const ContactSupport = () => {
     SpeechRecognition.startListening({ continuous: true, language: 'en-US' });
   };
 
-  const handleStopListening = () => {
+  const handleStopListening = async () => {
     setShowMicOn(true);
     SpeechRecognition.stopListening();
-    setInput(transcript);
-    setMessages((prevMessages) => [
-      ...prevMessages,
-      { text: transcript, sender: "user" },
-    ]);
-    resetTranscript();
+
+    const speechInput = transcript.trim();
+    if (speechInput) {
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        { text: speechInput, sender: "user" },
+      ]);
+      resetTranscript();
+
+      try {
+        const response = await fetch('https://ai-assistant-using-gemini-api.onrender.com/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ input: speechInput }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          const aiResponse = {
+            text: data.response,
+            sender: "ai",
+          };
+          setMessages((prevMessages) => [...prevMessages, aiResponse]);
+        } else {
+          const aiErrorResponse = {
+            text: data.error || "Sorry, something went wrong. Please try again later.",
+            sender: "ai",
+          };
+          setMessages((prevMessages) => [...prevMessages, aiErrorResponse]);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        const aiErrorResponse = {
+          text: "Sorry, something went wrong. Please try again later.",
+          sender: "ai",
+        };
+        setMessages((prevMessages) => [...prevMessages, aiErrorResponse]);
+      }
+    }
   };
 
   const handleSendMessage = async () => {
@@ -45,7 +89,7 @@ const ContactSupport = () => {
     setInput("");
 
     try {
-      const response = await fetch('http://localhost:5000/api/chat', {
+      const response = await fetch('https://ai-assistant-using-gemini-api.onrender.com/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -90,8 +134,11 @@ const ContactSupport = () => {
             >
               <p>{msg.text}</p>
               {msg.sender === "ai" && (
-                <button onClick={() => readAloud(msg.text)} className="read-out-button">
-                  <HiMiniSpeakerWave/>
+                <button
+                  onClick={() => readAloud(msg.text)}
+                  className="read-out-button"
+                >
+                  {speaking ? <HiMiniSpeakerXMark /> : <HiMiniSpeakerWave />}
                 </button>
               )}
             </div>
