@@ -125,7 +125,7 @@ const ContactSupport = () => {
   return (
     <div className="main-1">
       <div className="contact-support-container">
-        <h2>Contact Support AI</h2>
+        <h2>Personal Support AI-ASSISTANT</h2>
         <div className="chat-box">
           {messages.map((msg, index) => (
             <div
